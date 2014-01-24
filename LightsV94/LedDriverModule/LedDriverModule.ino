@@ -108,7 +108,6 @@ private:
   word m_liDropAlertHigh;
   word m_liDropAlertLow;
   word m_liDropAlertMs;
-  word m_liDropAlertIntensityBefore;
   unsigned long m_liDropAlertLastTimeAboveHigh;
   
   // light intensity gradual alert status and configuration
@@ -124,7 +123,6 @@ public:
     m_liDropAlertHigh(0),
     m_liDropAlertLow(0),
     m_liDropAlertMs(0),
-    m_liDropAlertIntensityBefore(),
     m_liDropAlertLastTimeAboveHigh(),
     m_liGradualAlertStatus(LSSA_ALERT_INACTIVE),
     m_liGradualAlertHigh(0),
@@ -134,6 +132,12 @@ public:
 
   void SetLedPower(bool on)
   {
+    Serial.print(F("Setting LED power relay "));
+    if (on) {
+      Serial.println(F("ON."));
+    } else {
+      Serial.println(F("OFF."));
+    }      
     // write to the pin that handles the relay
     digitalWrite(LED_POWER_RELAY_PIN, (on? HIGH: LOW));
   }
@@ -168,9 +172,6 @@ public:
           // remember the time stamp to calculate the drop speed if the alert gets bellow the lower limit
           m_liDropAlertLastTimeAboveHigh = millis();
           
-          // remember the current intensity for later report
-          m_liDropAlertIntensityBefore = lightIntensity;
-                
         } else {
           
           // if the we are bellow the low limit
@@ -182,11 +183,7 @@ public:
               // calculate the transition duration
               unsigned long ms = (millis() - m_liDropAlertLastTimeAboveHigh);
               
-              Serial.print(F("Light intensity drop alert: intensity has falen from "));
-              Serial.print(m_liDropAlertIntensityBefore);
-              Serial.print(F(" to "));
-              Serial.print(lightIntensity);
-              Serial.print(F(" within "));
+              Serial.print(F("Light intensity drop alert: intensity has falen within "));
               Serial.print(ms);
               Serial.println(F(" ms."));
   
@@ -196,7 +193,7 @@ public:
                 Serial.println(F("Light intensity drop alert: drop detected!"));
                 
                 // send the intensity drop alert
-                bool result = commManager.ReportLightIntensityDropDected(ee_rf24ControllerAddress, m_liDropAlertIntensityBefore, lightIntensity);
+                bool result = commManager.ReportLightIntensityDropDected(ee_rf24ControllerAddress);
                 
                 if (!result) {
                   
@@ -225,7 +222,7 @@ public:
             Serial.println(F("Light intensity gradual alert: high detected."));
 
             // send the intensity drop alert
-            bool result = commManager.ReportHighLightIntensityDected(ee_rf24ControllerAddress, lightIntensity);
+            bool result = commManager.ReportHighLightIntensityDected(ee_rf24ControllerAddress);
                 
             if (!result) {
                   
@@ -247,7 +244,7 @@ public:
               Serial.println(F("Light intensity gradual alert: low detected!"));
                 
               // send the intensity drop alert
-              bool result = commManager.ReportLowLightIntensityDected(ee_rf24ControllerAddress, lightIntensity);
+              bool result = commManager.ReportLowLightIntensityDected(ee_rf24ControllerAddress);
                 
               if (!result) {
                 
@@ -265,6 +262,12 @@ public:
   
   void Update()
   {
+    // if the reset has been required
+    if (m_status == S_RESET_PENDING) {
+    
+      // TODO:  
+    }
+    
     // handle network messages
     commManager.HandleLightDriverIncommingMessages(*this);
     
@@ -336,7 +339,6 @@ public:
       m_liDropAlertHigh = message.GetHigh();
       m_liDropAlertLow = message.GetLow();
       m_liDropAlertMs = message.GetMs();
-      m_liDropAlertIntensityBefore = 0;
       m_liDropAlertLastTimeAboveHigh = 0;
       
     } else {
