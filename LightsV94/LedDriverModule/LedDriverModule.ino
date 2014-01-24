@@ -145,6 +145,7 @@ public:
     
       // read the current light intensity
       int lightIntensity = analogRead(LIGHT_SENSOR_PIN);    
+      
       assert (0 <= lightIntensity && lightIntensity < 1024);
       
       // check the light drop alert first
@@ -156,9 +157,9 @@ public:
         if (m_liDropAlertHigh <= lightIntensity) {
 
           // if we are entering this status
-          if (m_liDropAlertStatus == LSSA_HIGH_ABOVE_ALERT) {
+          if (m_liDropAlertStatus != LSSA_HIGH_ABOVE_ALERT) {
             
-            Serial.println("Light intensity drop alert: above high.");
+            Serial.println(F("Light intensity drop alert: above high."));
 
             // update the status
             m_liDropAlertStatus = LSSA_HIGH_ABOVE_ALERT;
@@ -178,22 +179,28 @@ public:
             // did we switch from LSSA_HIGH_ABOVE_ALERT status?
             if (m_liDropAlertStatus == LSSA_HIGH_ABOVE_ALERT) {
              
-              Serial.println("Light intensity drop alert: bellow low.");
-  
               // calculate the transition duration
-              unsigned long ms = millis() - m_liDropAlertLastTimeAboveHigh;
+              unsigned long ms = (millis() - m_liDropAlertLastTimeAboveHigh);
               
+              Serial.print(F("Light intensity drop alert: intensity has falen from "))
+              Serial.print(m_liDropAlertIntensityBefore);
+              Serial.print(F(" to "))
+              Serial.print(lightIntensity);
+              Serial.print(F(" within "))
+              Serial.print(ms);
+              Serial.println(F(" ms."))
+  
               // if the transition quick enough?
               if (ms <= m_liDropAlertMs) {
   
-                Serial.println("Light intensity drop alert: drop detected!");
+                Serial.println(F("Light intensity drop alert: drop detected!"));
                 
                 // send the intensity drop alert
                 bool result = commManager.ReportLightIntensityDropDected(ee_rf24ControllerAddress, m_liDropAlertIntensityBefore, lightIntensity);
                 
                 if (!result) {
                   
-                  Serial.println("Light intensity drop alert: command sending failed!");
+                  Serial.print(F("Light intensity drop alert: command sending FAILED!"));
                 }
               }
             }
