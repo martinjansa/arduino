@@ -96,8 +96,8 @@ public:
   enum LightSensorAlertStatus {
     LSSA_ALERT_INACTIVE    = 0,  // initial status, the alert is deactivated
     LSSA_ALERT_ACTIVE      = 1,  // the alert has been configured
-    LSSA_HIGH_ABOVE_ALERT  = 2,  // the intensity is above the configured limit, reported to controller. It will not be repeared untill the decrease bellow lower limit  
-    LSSA_HIGH_BELLOW_ALERT = 3,  // the intensity is above the configured limit, reported to controller. It will not be repeared untill the decrease bellow lower limit  
+    LSSA_ABOVE_HIGH_ALERT  = 2,  // the intensity is above the configured limit, reported to controller. It will not be repeared untill the decrease bellow lower limit  
+    LSSA_BELLOW_LOW_ALERT  = 3,  // the intensity is above the configured limit, reported to controller. It will not be repeared untill the decrease bellow lower limit  
   };
     
 private:
@@ -147,7 +147,7 @@ public:
       int lightIntensity = analogRead(LIGHT_SENSOR_PIN);    
       
       assert (0 <= lightIntensity && lightIntensity < 1024);
-      
+
       // check the light drop alert first
       
       // if the drop alert is configured (active)
@@ -157,12 +157,12 @@ public:
         if (m_liDropAlertHigh <= lightIntensity) {
 
           // if we are entering this status
-          if (m_liDropAlertStatus != LSSA_HIGH_ABOVE_ALERT) {
+          if (m_liDropAlertStatus != LSSA_ABOVE_HIGH_ALERT) {
             
             Serial.println(F("Light intensity drop alert: above high."));
 
             // update the status
-            m_liDropAlertStatus = LSSA_HIGH_ABOVE_ALERT;
+            m_liDropAlertStatus = LSSA_ABOVE_HIGH_ALERT;
           }            
          
           // remember the time stamp to calculate the drop speed if the alert gets bellow the lower limit
@@ -176,19 +176,19 @@ public:
           // if the we are bellow the low limit
           if (lightIntensity <= m_liDropAlertLow) {
             
-            // did we switch from LSSA_HIGH_ABOVE_ALERT status?
-            if (m_liDropAlertStatus == LSSA_HIGH_ABOVE_ALERT) {
+            // did we switch from LSSA_ABOVE_HIGH_ALERT status?
+            if (m_liDropAlertStatus == LSSA_ABOVE_HIGH_ALERT) {
              
               // calculate the transition duration
               unsigned long ms = (millis() - m_liDropAlertLastTimeAboveHigh);
               
-              Serial.print(F("Light intensity drop alert: intensity has falen from "))
+              Serial.print(F("Light intensity drop alert: intensity has falen from "));
               Serial.print(m_liDropAlertIntensityBefore);
-              Serial.print(F(" to "))
+              Serial.print(F(" to "));
               Serial.print(lightIntensity);
-              Serial.print(F(" within "))
+              Serial.print(F(" within "));
               Serial.print(ms);
-              Serial.println(F(" ms."))
+              Serial.println(F(" ms."));
   
               // if the transition quick enough?
               if (ms <= m_liDropAlertMs) {
@@ -205,8 +205,58 @@ public:
               }
             }
           
-            // now we are bellow
-            m_liDropAlertStatus = LSSA_HIGH_BELLOW_ALERT;
+            // now we are bellow low
+            m_liDropAlertStatus = LSSA_BELLOW_LOW_ALERT;
+          }
+        }
+      }
+
+      // check the gradual light decrease/increase alert first
+      
+      // if the gradual alert is configured (active)
+      if (m_liGradualAlertStatus != LSSA_ALERT_INACTIVE) {
+        
+        // if we are above high limit
+        if (m_liGradualAlertHigh <= lightIntensity) {
+
+          // if we are entering this status
+          if (m_liGradualAlertStatus != LSSA_ABOVE_HIGH_ALERT) {
+            
+            Serial.println(F("Light intensity gradual alert: high detected."));
+
+            // send the intensity drop alert
+            bool result = commManager.ReportHighLightIntensityDected(ee_rf24ControllerAddress, lightIntensity);
+                
+            if (!result) {
+                  
+              Serial.print(F("Light intensity gradual alert: command sending FAILED!"));
+            }
+
+            // update the status
+            m_liGradualAlertStatus = LSSA_ABOVE_HIGH_ALERT;
+          }            
+                
+        } else {
+          
+          // if the we are bellow the low limit
+          if (lightIntensity <= m_liGradualAlertLow) {
+            
+            // are we entering the LOW mode for the first time since last change?
+            if (m_liGradualAlertStatus != LSSA_BELLOW_LOW_ALERT) {
+                           
+              Serial.println(F("Light intensity gradual alert: low detected!"));
+                
+              // send the intensity drop alert
+              bool result = commManager.ReportLowLightIntensityDected(ee_rf24ControllerAddress, lightIntensity);
+                
+              if (!result) {
+                
+                Serial.print(F("Light intensity gradual alert: command sending FAILED!"));
+              }
+          
+              // now we are bellow
+              m_liGradualAlertStatus = LSSA_BELLOW_LOW_ALERT;
+            }
           }
         }
       }
@@ -310,7 +360,7 @@ public:
     if (message.GetHigh() != 0 || message.GetLow() != 0) {
       
       // activate the alert and restart it
-      m_liGradualAlertStatus = LSSA_ALERT_INACTIVE;
+      m_liGradualAlertStatus = LSSA_ALERT_ACTIVE;
       m_liGradualAlertHigh = message.GetHigh();
       m_liGradualAlertLow = message.GetLow();
       
