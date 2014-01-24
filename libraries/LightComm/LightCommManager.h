@@ -9,11 +9,11 @@
 class ILightCommControllerMessageHandler {
 public:
 
-  virtual LightCommError HandleLiDropAlertDetected(uint16_t senderNode, const LightCommMessage_LiDropAlertDetected &message) = 0;
+  virtual LightCommError HandleLiDropAlertDetected(uint16_t senderNode) = 0;
 
-  virtual LightCommError HandleLiLowLightDetected(uint16_t senderNode, const LightCommMessage_LiLowLightDetected &message) = 0;
+  virtual LightCommError HandleLiLowLightDetected(uint16_t senderNode) = 0;
 
-  virtual LightCommError HandleLiHighLightDetected(uint16_t senderNode, const LightCommMessage_LiHighLightDetected &message) = 0;
+  virtual LightCommError HandleLiHighLightDetected(uint16_t senderNode) = 0;
 
 };
 
@@ -262,9 +262,8 @@ public:
 
           case RF24CMT_LI_DROP_ALERT_DETECTED:
             {
-              LightCommMessage_LiDropAlertDetected message;
-              if (message.read(header, m_network)) {
-                LightCommError result = handler.HandleLiDropAlertDetected(header.from_node, message);
+              if (ILightCommMessage::readNoParams(header, m_network, RF24CMT_LI_DROP_ALERT_DETECTED)) {
+                LightCommError result = handler.HandleLiDropAlertDetected(header.from_node);
                 
                 // send the handling result
                 SendResult(header.from_node, result);
@@ -274,9 +273,8 @@ public:
  
           case RF24CMT_LI_LOW_LIGHT_DETECTED:
             {
-              LightCommMessage_LiLowLightDetected message;
-              if (message.read(header, m_network)) {
-                LightCommError result = handler.HandleLiLowLightDetected(header.from_node, message);
+              if (ILightCommMessage::readNoParams(header, m_network, RF24CMT_LI_LOW_LIGHT_DETECTED)) {
+                LightCommError result = handler.HandleLiLowLightDetected(header.from_node);
                 
                 // send the handling result
                 SendResult(header.from_node, result);
@@ -286,9 +284,8 @@ public:
 
           case RF24CMT_LI_HIGH_LIGHT_DETECTED:
             {
-              LightCommMessage_LiHighLightDetected message;
-              if (message.read(header, m_network)) {
-                LightCommError result = handler.HandleLiHighLightDetected(header.from_node, message);
+              if (ILightCommMessage::readNoParams(header, m_network, RF24CMT_LI_HIGH_LIGHT_DETECTED)) {
+                LightCommError result = handler.HandleLiHighLightDetected(header.from_node);
                 
                 // send the handling result
                 SendResult(header.from_node, result);
@@ -454,11 +451,10 @@ public:
     return (result && ReceiveOkErrorResult(recepientNode));
   }
 
-  bool ReportLightIntensityDropDected(uint16_t recepientNode, word before, word after)
+  bool ReportLightIntensityDropDected(uint16_t recepientNode)
   {
-    // send the config message
-    LightCommMessage_LiDropAlertDetected message(before, after);
-    bool result = SendMessage(recepientNode, message);
+    // send the RF24CMT_LI_DROP_ALERT_DETECTED message
+    bool result = SendMessage(recepientNode, RF24CMT_LI_DROP_ALERT_DETECTED);
 
     // wait for the response (only OK or error expected)
     return (result && ReceiveOkErrorResult(recepientNode));
@@ -480,21 +476,19 @@ public:
     return (result && ReceiveOkErrorResult(recepientNode));
   }
 
-  bool ReportLowLightIntensityDected(uint16_t recepientNode, word intensity)
+  bool ReportLowLightIntensityDected(uint16_t recepientNode)
   {
-    // send the config message
-    LightCommMessage_LiLowLightDetected message(intensity);
-    bool result = SendMessage(recepientNode, message);
+    // send the RF24CMT_LI_LOW_LIGHT_DETECTED message
+    bool result = SendMessage(recepientNode, RF24CMT_LI_LOW_LIGHT_DETECTED);
 
     // wait for the response (only OK or error expected)
     return (result && ReceiveOkErrorResult(recepientNode));
   }
 
-  bool ReportHighLightIntensityDected(uint16_t recepientNode, word intensity)
+  bool ReportHighLightIntensityDected(uint16_t recepientNode)
   {
-    // send the config message
-    LightCommMessage_LiHighLightDetected message(intensity);
-    bool result = SendMessage(recepientNode, message);
+    // send the RF24CMT_LI_HIGH_LIGHT_DETECTED message
+    bool result = SendMessage(recepientNode, RF24CMT_LI_HIGH_LIGHT_DETECTED);
 
     // wait for the response (only OK or error expected)
     return (result && ReceiveOkErrorResult(recepientNode));

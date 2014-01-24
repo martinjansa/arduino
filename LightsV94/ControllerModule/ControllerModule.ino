@@ -211,31 +211,29 @@ public:
     UpdateOnOffSwitch();
   }
   
-  virtual LightCommError HandleLiDropAlertDetected(uint16_t senderNode, const LightCommMessage_LiDropAlertDetected &message)
+  virtual LightCommError HandleLiDropAlertDetected(uint16_t senderNode)
   {
-    Serial.print("Light intensity drop alert received { before: ");
-    Serial.print(message.GetBefore(), DEC);
-    Serial.print(", after: ");
-    Serial.print(message.GetAfter(), DEC);
-    Serial.println("}");
+    Serial.println(F("Light intensity drop alert received."));
+    
+    // TODO:
     
     return 0;
   }
 
-  virtual LightCommError HandleLiLowLightDetected(uint16_t senderNode, const LightCommMessage_LiLowLightDetected &message)
+  virtual LightCommError HandleLiLowLightDetected(uint16_t senderNode)
   {
-    Serial.print("Low light intensity alert received { intensity: ");
-    Serial.print(message.GetIntensity(), DEC);
-    Serial.println("}");
-    
+    Serial.println(F("Low light intensity alert received."));
+
+    // TODO:   
+
     return 0;
   }
 
-  virtual LightCommError HandleLiHighLightDetected(uint16_t senderNode, const LightCommMessage_LiHighLightDetected &message) 
+  virtual LightCommError HandleLiHighLightDetected(uint16_t senderNode) 
   {
-    Serial.print("High light intensity alert received { intensity: ");
-    Serial.print(message.GetIntensity(), DEC);
-    Serial.println("}");
+    Serial.println(F("High light intensity alert received."));
+    
+    // TODO:
     
     return 0;
   }

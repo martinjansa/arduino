@@ -46,10 +46,10 @@ enum RF24CommMessageType {
   //                                    
   // Note: The light sensor is active only if the allowed and the LEDs of the device are off (R,G,B = 0,0,0).
   RF24CMT_LI_CONFIG_DROP_ALERT     = 20, // (byte high, byte low, byte ms) - configures sudden light intensity drop alert. High and low are light intensity sensor threshold values in the range 0..1023 and ms is the maximal time for the intensity change to be considered sudden/fast in the range 0..65535. All values 0 means the alert is disabled.
-  RF24CMT_LI_DROP_ALERT_DETECTED   = 21, // (byte before, byte after) - reports that the sudden light intensity drop was detected by the device with light sensor. The parameters are the actual light intensity values before and after the change measured at the configured maximal drop duration (see RF24CMT_LI_CONFIG_DROP_ALERT).
+  RF24CMT_LI_DROP_ALERT_DETECTED   = 21, // () - reports that the sudden light intensity drop was detected by the device with light sensor.
   RF24CMT_LI_CONFIG_GRADUAL_ALERT  = 22, // (byte high, byte low) - configures gradual alert by the high and low threasholds (byte 0..255 multipled by 4) used in a hysteresis. A combination of 0, 0 means alert is disabled. If the light intensity gets bellow the low threshold the 
-  RF24CMT_LI_LOW_LIGHT_DETECTED    = 23, // (byte intensity) - reports a gradual decrease of the light intensity bellow the given threshold. Reported only if the threshold is reached for the first time after the alert activation or since the last report of the RF24CMT_LI_HIGH_LIGHT_DETECTED message. Intensity reports the current light intensity level.
-  RF24CMT_LI_HIGH_LIGHT_DETECTED   = 24, // (byte intensity) - reports a gradual increase of the light intensity above the given threshold. Reported only if the threshold is reached for the first time after the alert activation or since the last report of the RF24CMT_LI_LOW_LIGHT_DETECTED message. Intensity reports the current light intensity level.
+  RF24CMT_LI_LOW_LIGHT_DETECTED    = 23, // () - reports a gradual decrease of the light intensity bellow the given threshold. Reported only if the threshold is reached for the first time after the alert activation or since the last report of the RF24CMT_LI_HIGH_LIGHT_DETECTED message. 
+  RF24CMT_LI_HIGH_LIGHT_DETECTED   = 24, // () - reports a gradual increase of the light intensity above the given threshold. Reported only if the threshold is reached for the first time after the alert activation or since the last report of the RF24CMT_LI_LOW_LIGHT_DETECTED message. 
 
 };
 
@@ -247,43 +247,6 @@ public:
 
 };
 
-// RF24CMT_LI_DROP_ALERT_DETECTED
-class LightCommMessage_LiDropAlertDetected: public ILightCommMessage {
-private:
-  word m_before, m_after;
-
-public:
-  LightCommMessage_LiDropAlertDetected(): m_before(0), m_after(0) {}
-  LightCommMessage_LiDropAlertDetected(word before, word after): m_before(before), m_after(after) {}
-
-  word GetBefore() const {
-    return m_before;
-  }
-  word GetAfter() const {
-    return m_after;
-  }
-
-  virtual bool read(RF24NetworkHeader &header, IRF24Network &network)
-  {
-    word buf[2];
-    size_t size = network.read(header, buf, 4);
-    if (size != 4) return false;
-    assert(header.type = RF24CMT_LI_DROP_ALERT_DETECTED);
-    m_before = buf[0];
-    m_after = buf[1];
-    return true;
-  }
-
-  virtual bool write(RF24NetworkHeader &header, IRF24Network &network) const 
-  {
-    word buf[2];
-    buf[0] = m_before;
-    buf[1] = m_after;
-    header.type = RF24CMT_LI_DROP_ALERT_DETECTED;
-    return network.write(header, buf, 4);
-  }
-
-};
 
 // RF24CMT_LI_CONFIG_GRADUAL_ALERT
 class LightCommMessage_LiConfigGradualAlert: public ILightCommMessage {
@@ -323,60 +286,5 @@ public:
 
 };
 
-// RF24CMT_LI_LOW_LIGHT_DETECTED
-class LightCommMessage_LiLowLightDetected: public ILightCommMessage {
-private:
-  word m_intensity;
-
-public:
-  LightCommMessage_LiLowLightDetected(word intensity = 0): m_intensity(intensity) {}
-
-  word GetIntensity() const {
-    return m_intensity;
-  }
-
-  virtual bool read(RF24NetworkHeader &header, IRF24Network &network)
-  {
-    size_t size = network.read(header, &m_intensity, 2);
-    if (size != 2) return false;
-    assert(header.type = RF24CMT_LI_LOW_LIGHT_DETECTED);
-    return true;
-  }
-
-  virtual bool write(RF24NetworkHeader &header, IRF24Network &network) const 
-  {
-    header.type = RF24CMT_LI_LOW_LIGHT_DETECTED;
-    return network.write(header, &m_intensity, 2);
-  }
-
-};
-
-// RF24CMT_LI_HIGH_LIGHT_DETECTED
-class LightCommMessage_LiHighLightDetected: public ILightCommMessage {
-private:
-  word m_intensity;
-
-public:
-  LightCommMessage_LiHighLightDetected(word intensity = 0): m_intensity(intensity) {}
-
-  word GetIntensity() const {
-    return m_intensity;
-  }
-
-  virtual bool read(RF24NetworkHeader &header, IRF24Network &network)
-  {
-    size_t size = network.read(header, &m_intensity, 2);
-    if (size != 2) return false;
-    assert(header.type = RF24CMT_LI_HIGH_LIGHT_DETECTED);
-    return true;
-  }
-
-  virtual bool write(RF24NetworkHeader &header, IRF24Network &network) const 
-  {
-    header.type = RF24CMT_LI_HIGH_LIGHT_DETECTED;
-    return network.write(header, &m_intensity, 2);
-  }
-
-};
 
 #endif // LIGHT_COMM_MESSAGE__H
