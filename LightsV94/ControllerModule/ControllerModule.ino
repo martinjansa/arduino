@@ -176,21 +176,33 @@ public:
     // if uninitialized and it is already time to initialize led drivers
     if (m_status == S_UNINITIALIZED && (millis() - m_startupTime) >= INITIALIZE_LED_DRIVERS_DELAY) {
 
-      Serial.println("Update: initializing LED drivers");
+      Serial.println("Update: initializing LED drivers...");
 
       // initialize the LED driver 2
       bool result = commManager.ConfigLightDriverDropAlert(ee_rf24LedDriver2Address, ee_DropAlert_High, ee_DropAlert_Low, ee_DropAlert_Ms);
       
       if (result) {
         
-        Serial.println("Update: success.");
+        Serial.println(F("Update: initializing LED drivers: drop alert succeeded."));
 
       } else {
         
-        Serial.println("Update: failed.");
+        Serial.println(F("Update: initializing LED drivers: drop alert FAILED."));
       }
 
-        m_status = S_OFF;
+      // initialize the LED driver 2
+      result = commManager.ConfigLightDriverGradualAlert(ee_rf24LedDriver2Address, ee_GradualAlert_High, ee_GradualAlert_Low);
+      
+      if (result) {
+        
+        Serial.println(F("Update: initializing LED drivers: gradual alert succeeded."));
+
+      } else {
+        
+        Serial.println(F("Update: initializing LED drivers: gradual alert FAILED."));
+      }
+
+      m_status = S_OFF;
     }
 
     // Serial.println("Update: ON/OFF switch status.");
