@@ -109,21 +109,35 @@ private:
 	}
   }
 
-  bool ReceiveResult(uint16_t senderNode, LightCommError &receivedResult, RF24CommMessageType &receivedMessageType, word timeOut = 0)
+  bool ReceiveResult(uint16_t senderNode, LightCommError &receivedResult, RF24CommMessageType &receivedMessageType, word timeOut = 200)
   {
     unsigned long start_time = millis();
+	const unsigned long timeOutLong = timeOut;
 
-    while ((start_time - millis()) < timeOut) {
+	Serial.print(F("ReceiveResult: (0 ms) waiting for the response from "));
+	Serial.println(senderNode);
+	
+    while ((millis() - start_time) < timeOutLong) {
+
+	  Serial.print(F("ReceiveResult: ("));
+	  Serial.print(millis() - start_time);
+	  Serial.println(F(" ms) updating network."));
 
       // update the network
       m_network.update();
 
       if (m_network.available()) {
 
+	    Serial.print(F("ReceiveResult: ("));
+	    Serial.print(millis() - start_time);
+	    Serial.println(F(" ms) message available."));
+	  
         // get the header of the current message, but leave it in the queue
         RF24NetworkHeader header;
         m_network.peek(header);    
 
+        IRF24Network::DumpHeader(header, "ReceiveResult: Message in the head of the network queue ");
+		
         // if the message is for this node from the expected sender
         if (header.to_node == m_nodeAddress && header.from_node == senderNode) {
 
@@ -135,7 +149,12 @@ private:
 
             case RF24CMT_OK:
 
-              // OK is expected
+	          Serial.println(F("ReceiveResult: OK message received."));
+			  
+			  // remove the OK message from the queue
+			  ILightCommMessage::readNoParams(header, m_network, RF24CMT_OK);
+
+			  // OK is expected
               receivedResult = 0;
 
               // report success
@@ -151,9 +170,16 @@ private:
                   // get the received error code from the message
                   receivedResult = errorMessage.GetErrorCode();
 
-                  // report successfull reception of the error
+	              Serial.print(F("ReceiveResult: error message received with error code "));
+				  Serial.println(receivedResult);
+
+			      // report successful reception of the error
                   return true;
-                }
+				  
+                } else {
+				
+	              Serial.println(F("ReceiveResult: receiving of the error message FAILED."));
+				}
               }
 
               // report failure
@@ -161,6 +187,8 @@ private:
 
             default:
 
+	          Serial.println(F("ReceiveResult: ERROR: unexpected message received."));
+			  
               // report failure
               return false;
           }
@@ -168,6 +196,10 @@ private:
       }
     }
 
+	Serial.print(F("ReceiveResult: ("));
+	Serial.print(millis() - start_time);
+	Serial.println(F(" ms) TIMEOUT ERROR."));
+	
     // report failure (timeout)
     return false;
   }
@@ -186,8 +218,15 @@ private:
 
     if (result) {
 
+	  Serial.print(F("ReceiveOkErrorResult: receive result succeeded, received error: "));
+	  Serial.println(receivedError);
+	  
       result = (receivedError == 0);
-    }
+	  
+    } else {
+	
+	  Serial.println(F("ReceiveOkErrorResult: receive result FAILED."));
+	}
 
     return result;
   }
@@ -405,6 +444,12 @@ public:
     LightCommMessage_LIConfigDropAlert message(high, low, ms);
     bool result = SendMessage(recepientNode, message);
 
+    if (result) {
+	  Serial.println(F("ConfigLightDriverDropAlert: sending config message succeeded."));
+	} else {
+	  Serial.println(F("ConfigLightDriverDropAlert: sending config message FAILED."));
+	}
+	
     // wait for the response (only OK or error expected)
     return (result && ReceiveOkErrorResult(recepientNode));
   }
@@ -425,6 +470,12 @@ public:
     LightCommMessage_LiConfigGradualAlert message(high, low);
     bool result = SendMessage(recepientNode, message);
 
+    if (result) {
+	  Serial.println(F("ConfigLightDriverGradualAlert: sending config message succeeded."));
+	} else {
+	  Serial.println(F("ConfigLightDriverGradualAlert: sending config message FAILED."));
+	}
+	
     // wait for the response (only OK or error expected)
     return (result && ReceiveOkErrorResult(recepientNode));
   }
