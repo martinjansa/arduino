@@ -268,11 +268,11 @@ void setup()
   ee_NightModeColor_Red = 128;
   ee_NightModeColor_Green = 64;
   ee_NightModeColor_Blue = 64;
-  ee_DropAlert_High = 300;
-  ee_DropAlert_Low = 100;
-  ee_DropAlert_Ms = 500;
-  ee_GradualAlert_High = 300;
-  ee_GradualAlert_Low = 100;
+  ee_DropAlert_High = 100;
+  ee_DropAlert_Low = 20;
+  ee_DropAlert_Ms = 100;
+  ee_GradualAlert_High = 100;
+  ee_GradualAlert_Low = 50;
   /**/
   
   Serial.println("Light Controller");
