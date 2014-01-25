@@ -308,15 +308,20 @@ public:
 
 //  virtual LightCommError HandleQueryStatus(uint16_t senderNode) {}
 
-  virtual LightCommError HandleSetRGB(uint16_t senderNode, const LightCommMessage_SetRGB &message)
+  virtual LightCommError HandleSetHSBColor(uint16_t senderNode, const LightCommMessage_SetHSBColor &message)
   {
-    Serial.print("Set RGB command received { red: ");
-    Serial.print(message.GetRed(), DEC);
-    Serial.print(", green: ");
-    Serial.print(message.GetGreen(), DEC);
-    Serial.print(", blue: ");
-    Serial.print(message.GetBlue(), DEC);
+    Serial.print("Set HSB color command received { hue: ");
+    Serial.print(message.GetHue(), DEC);
+    Serial.print(", sat: ");
+    Serial.print(message.GetSat(), DEC);
+    Serial.print(", bri: ");
+    Serial.print(message.GetBri(), DEC);
+    Serial.print(", ms: ");
+    Serial.print(message.GetMs(), DEC);
     Serial.println("}");
+    
+    // TODO: hand over to the LED PWM driver
+    // TODO: activate power adaptor for LEDs
     
     return 0;
   }

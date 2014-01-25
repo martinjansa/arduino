@@ -31,8 +31,8 @@ enum RF24CommMessageType {
   RF24CMT_QUERY_STATUS             = 12, // (void) - ask the device to send it's current status. The device responds with RF24CMT_STATUS message (see bellow).
   RF24CMT_STATUS                   = 13, // (byte status) - send as a response to the RF24CMT_QUERY_STATUS query. Status is a bitmask, where bit 0: 0 = sleeping, 1 = awake; bit 1: 0 = light off, 1 = ligh on; bits 2 to 7: reserved.
 
-  // RGB messages
-  RF24CMT_SET_RGB                  = 15, // (byte red, byte green, byte blue) - activates the LED emittors according to the given color and intensity. The value ranges are from 0 to 255.
+  // Set HSB color messages
+  RF24CMT_SET_HSB_COLOR            = 15, // (word hue, byte sat, byte bri, word ms) - Sets the requested color and intesity. If ms is not 0, it specifies the duration of the change from the current color to the requested 0. If 0, the change is immediate.
 
   // light sensor alert configuration and notification messages
   //
@@ -160,45 +160,53 @@ public:
 };
 
 
-// RF24CMT_SET_RGB
-class LightCommMessage_SetRGB: public ILightCommMessage {
+// RF24CMT_SET_HSB_COLOR
+class LightCommMessage_SetHSBColor: public ILightCommMessage {
 private:
-  byte m_red, m_green, m_blue;
+  word m_hue;
+  byte m_sat;
+  byte m_bri;
+  word m_ms;
 
 public:
-  LightCommMessage_SetRGB(): m_red(0), m_green(0), m_blue(0) {}  
-  LightCommMessage_SetRGB(byte red, byte green, byte blue): m_red(red), m_green(green), m_blue(blue) {}  
+  LightCommMessage_SetHSBColor(): m_hue(0), m_sat(0), m_bri(0), m_ms(0) {}  
+  LightCommMessage_SetHSBColor(word hue, byte sat, byte bri, word ms): m_hue(hue), m_sat(sat), m_bri(bri) {}  
 
-  byte GetRed() const {
-    return m_red;
+  word GetHue() const {
+    return m_hue;
   };
-  byte GetGreen() const {
-    return m_green;
+  byte GetSat() const {
+    return m_sat;
   }
-  word GetBlue() const {
-    return m_blue;
+  byte GetBri() const {
+    return m_bri;
+  }
+  word GetMs() const {
+    return m_ms;
   }
 
   virtual bool read(RF24NetworkHeader &header, IRF24Network &network)
   {
-    byte buf[3];
-    size_t size = network.read(header, buf, 3);
-    if (size != 3) return false;
-    assert(header.type = RF24CMT_SET_RGB);
-    m_red = buf[0];
-    m_green = buf[1];
-    m_blue = buf[2];
+    byte buf[6];
+    size_t size = network.read(header, buf, 6);
+    if (size != 6) return false;
+    assert(header.type = RF24CMT_SET_HSB_COLOR);
+    m_hue = *((word *)&buf[0]);
+    m_sat = buf[2];
+    m_bri = buf[3];
+	m_ms = *((word *)&buf[4]);
     return true;
   }
 
   virtual bool write(RF24NetworkHeader &header, IRF24Network &network) const
   {
-    byte buf[3];
-    buf[0] = m_red;
-    buf[1] = m_green;
-    buf[2] = m_blue;
-    header.type = RF24CMT_SET_RGB;
-    return network.write(header, buf, 3);
+    byte buf[6];
+    *((word *)&buf[0]) = m_hue;
+    buf[2] = m_sat;
+    buf[3] = m_bri;
+	*((word *)&buf[4]) = m_ms;
+    header.type = RF24CMT_SET_HSB_COLOR;
+    return network.write(header, buf, 6);
   }
 
 };

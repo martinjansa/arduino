@@ -30,7 +30,7 @@ public:
 
 //  virtual LightCommError HandleQueryStatus(uint16_t senderNode) = 0;
 
-  virtual LightCommError HandleSetRGB(uint16_t senderNode, const LightCommMessage_SetRGB &message) = 0;
+  virtual LightCommError HandleSetHSBColor(uint16_t senderNode, const LightCommMessage_SetHSBColor &message) = 0;
 
   virtual LightCommError HandleLiConfigDropAlert(uint16_t senderNode, const LightCommMessage_LIConfigDropAlert &message) = 0;
 
@@ -360,11 +360,11 @@ public:
 //        case RF24CMT_QUERY_STATUS:
 //          HandleQueryStatus(header.from_node)
 
-          case RF24CMT_SET_RGB:
+          case RF24CMT_SET_HSB_COLOR:
             {
-              LightCommMessage_SetRGB message;
+              LightCommMessage_SetHSBColor message;
               if (message.read(header, m_network)) {
-                LightCommError result = handler.HandleSetRGB(header.from_node, message);
+                LightCommError result = handler.HandleSetHSBColor(header.from_node, message);
                 
                 // send the handling result
                 SendResult(header.from_node, result);
@@ -425,11 +425,11 @@ public:
     return (result && ReceiveOkErrorResult(recepientNode));
   }
 
-  bool SetLightDriverRGB(uint16_t recepientNode, byte red, byte green, byte blue)
+  bool SetLightDriverHSBColor(uint16_t recepientNode, word hue, byte sat, byte bri, word ms)
   {
     // send the set RGB reset message
-    LightCommMessage_SetRGB setRGB(red, green, blue);
-    bool result = SendMessage(recepientNode, setRGB);
+    LightCommMessage_SetHSBColor setHSBColor(hue, sat, bri, ms);
+    bool result = SendMessage(recepientNode, setHSBColor);
 
     // wait for the response (only OK or error expected)
     return (result && ReceiveOkErrorResult(recepientNode));
