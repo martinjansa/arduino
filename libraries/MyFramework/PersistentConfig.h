@@ -9,12 +9,22 @@ class PersistentConfigItemBase;
 class PersistentConfig {
 private:
   friend class PersistentConfigItemBase;
+  bool m_writeDefaults;
   PersistentConfigItemBase *m_last;
   
 public:
-  PersistentConfig(): m_last(0) {}
+  PersistentConfig(bool writeDefaults = false): 
+    m_writeDefaults(writeDefaults), 
+	m_last(0)
+  {
+  }
 
   inline bool CheckOverlaps() const;
+  
+  bool WriteDefaults() const
+  {
+    return m_writeDefaults;
+  }
 };
 
 
@@ -94,11 +104,22 @@ public:
 
 template <class T>
 class PersistentConfigItem: public PersistentConfigItemBase {
-private:
-  
 public:
-  PersistentConfigItem(PersistentConfig &config, size_t address): PersistentConfigItemBase(config, address, sizeof(T)) {}
+  PersistentConfigItem(PersistentConfig &config, size_t address):
+    PersistentConfigItemBase(config, address, sizeof(T))
+  {
+  }
   
+  PersistentConfigItem(PersistentConfig &config, size_t address, T defaultValue):
+    PersistentConfigItemBase(config, address, sizeof(T))
+  {
+    // if the config is initialized to write the default values during the init
+    if (config.WriteDefaults()) {
+	  
+      Write(&defaultValue);
+	}
+  }
+
   operator T () 
   {
     T result;
