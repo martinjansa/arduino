@@ -89,7 +89,7 @@ PersistentConfigItem<word> ee_OrientationModeDuration   (ee_config, 0x38, 5000);
 // alerts configuration [0x40-0x4f]
 PersistentConfigItem<word> ee_DropAlert_High            (ee_config, 0x40,  100);   // drop alert configuration - high (0 mean inactive)
 PersistentConfigItem<word> ee_DropAlert_Low             (ee_config, 0x42,   20);   // drop alert configuration - low
-PersistentConfigItem<word> ee_DropAlert_Ms              (ee_config, 0x44,  100);   // drop alert configuration - ms
+PersistentConfigItem<word> ee_DropAlert_Ms              (ee_config, 0x44,  250);   // drop alert configuration - ms
 PersistentConfigItem<word> ee_GradualAlert_High         (ee_config, 0x46,  100);   // gradual alert configuration - high (0 mean inactive)
 PersistentConfigItem<word> ee_GradualAlert_Low          (ee_config, 0x48,   50);   // gradual alert configuration - low
 
