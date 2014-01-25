@@ -64,13 +64,33 @@ public:
   virtual size_t read(RF24NetworkHeader& header, void* message, size_t maxlen)
   {
     size_t result = m_network.read(header, message, maxlen);
-    IRF24Network::DumpHeader(header, "Message received ");
+    IRF24Network::DumpHeader(header, "Message received ", false);
+	byte *messageBuf = (byte *) message;
+	for (size_t i = 0; i < result; ++i) {
+	  
+	  if (messageBuf[i] < 16) {
+	    Serial.print(F("0"));
+      }
+	  Serial.print(messageBuf[i], HEX);
+	  Serial.print(F(" "));
+	}
+    Serial.print(F("\n"));
 	return result;
   }
 
   virtual bool write(RF24NetworkHeader& header,const void* message, size_t len)
   {
-    IRF24Network::DumpHeader(header, "Sending message ");
+    IRF24Network::DumpHeader(header, "Sending message ", false);
+	byte *messageBuf = (byte *) message;
+	for (size_t i = 0; i < len; ++i) {
+	  
+	  if (messageBuf[i] < 16) {
+	    Serial.print(F("0"));
+      }
+	  Serial.print(messageBuf[i], HEX);
+	  Serial.print(F(" "));
+	}
+    Serial.print(F("\n"));
     return m_network.write(header, message, len);
   }
 
