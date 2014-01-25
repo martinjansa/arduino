@@ -23,6 +23,8 @@
 #include <LightCommManager.h>
 #include <LightCommMessage.h> 
 
+#include <DS1302.h>
+
 
 // transactions durations
 static const unsigned long INITIALIZE_LED_DRIVERS_DELAY  = 1000;
@@ -34,20 +36,20 @@ static const unsigned long ON_SWITCH_DEBOUNCING_FILTER_DURATION = 100;
 //static const int LIGHT_SENSOR_PIN       = A0; 
 
 // digital pins
-static const int SERIAL_RX_PIN          =  0;  // (used by the Serial port)
-static const int SERIAL_TX_PIN          =  1;  // (used by the Serial port)
-static const int ON_SWITCH_PIN          =  2;  // (light controlling switch pin)
-//static const int RED_PWM_PIN            =  3;
-//               available                 4
-//static const int GREEN_PWM_PIN          =  5;
-//static const int BLUE_PWM_PIN           =  6;
-//               available                 7
+static const int SERIAL_RX_PIN             =  0;  // (used by the Serial port)
+static const int SERIAL_TX_PIN             =  1;  // (used by the Serial port)
+static const int ON_SWITCH_PIN             =  2;  // (light controlling switch pin)
+static const int ORIENTATION_LEDS_PWM_PIN  =  3;
+static const int DS1320_CE_PIN             =  4;  // DS1302 real time clock CS, I/O & SCLK pins
+static const int DS1302_IO_PIN             =  5;
+static const int DS1302_SCLK_PIN           =  6;
+static const int IR_SENSOR_PIN             =  7;  // HIGH it move is detected
 //               available                 8
-static const int RF24_CHIP_ENABLE_PIN   =  9;
-static const int RF24_CHIP_SELECT_PIN   = 10;
-static const int RF24_MOSI_PIN          = 11;  // (cannot be changed probably, see RF24 if you consider this options)
-static const int RF24_MISO_PIN          = 12;  // (cannot be changed probably, see RF24 if you consider this options)
-static const int RF24_SCK_PIN           = 13;  // (cannot be changed probably, see RF24 if you consider this options)
+static const int RF24_CHIP_ENABLE_PIN      =  9;
+static const int RF24_CHIP_SELECT_PIN      = 10;
+static const int RF24_MOSI_PIN             = 11;  // (cannot be changed probably, see RF24 if you consider this options)
+static const int RF24_MISO_PIN             = 12;  // (cannot be changed probably, see RF24 if you consider this options)
+static const int RF24_SCK_PIN              = 13;  // (cannot be changed probably, see RF24 if you consider this options)
 
 // persistent configuration
 PersistentConfig ee_config(true);
@@ -66,25 +68,25 @@ PersistentConfigItem<uint16_t> ee_rf24LedDriver4Address (ee_config, 0x09,   4); 
 PersistentConfigItem<word> ee_FullStrenghtColor_Hue     (ee_config, 0x10,   60);
 PersistentConfigItem<byte> ee_FullStrenghtColor_Sat     (ee_config, 0x12,   56);
 PersistentConfigItem<byte> ee_FullStrenghtColor_Bri     (ee_config, 0x13,  255);
-PersistentConfigItem<word> ee_FullStrenghtOnSpeed       (ee_config, 0x14,  2000);   // power on time in ms
-PersistentConfigItem<word> ee_FullStrenghtOffSpeed      (ee_config, 0x16,  2000);   // power off time in ms
+PersistentConfigItem<word> ee_FullStrenghtOnSpeed       (ee_config, 0x14,  1000);   // power on time in ms
+PersistentConfigItem<word> ee_FullStrenghtOffSpeed      (ee_config, 0x16,  1000);   // power off time in ms
 
 // night mode [0x20-0x2f]  - Warm white 50%: RGB = [128, 128, 100], HSB = [60, 22, 50]
 PersistentConfigItem<word> ee_NightModeColor_Hue        (ee_config, 0x20,   60);
 PersistentConfigItem<byte> ee_NightModeColor_Sat        (ee_config, 0x22,   56);
 PersistentConfigItem<byte> ee_NightModeColor_Bri        (ee_config, 0x23,  128);
-PersistentConfigItem<word> ee_NightModeOnSpeed          (ee_config, 0x24, 2000);   // power on time in ms
-PersistentConfigItem<word> ee_NightModeOffSpeed         (ee_config, 0x26, 2000);   // power off time in ms
-PersistentConfigItem<word> ee_NightModeTime_End         (ee_config, 0x28,  420);   // minute of the end of the night mode (7:00)
-PersistentConfigItem<word> ee_NightModeTime_Start       (ee_config, 0x2a, 1230);   // minute of the start of the night mode (20:30)
+PersistentConfigItem<word> ee_NightModeOnSpeed          (ee_config, 0x24, 1000);   // power on time in ms
+PersistentConfigItem<word> ee_NightModeOffSpeed         (ee_config, 0x26, 1000);   // power off time in ms
+PersistentConfigItem<word> ee_NightModeTime_End         (ee_config, 0x28,  420);   // 0 - 1439: minute of the end of the night mode (7:00)
+PersistentConfigItem<word> ee_NightModeTime_Start       (ee_config, 0x2a, 1230);   // 0 - 1439: minute of the start of the night mode (20:30)
 
 // orientation mode [0x30-0x3f] - Warm white 20%: RGB = [51, 51, 40], HSB = [60, 22, 20]
 PersistentConfigItem<word> ee_OrientationModeColor_Hue  (ee_config, 0x30,   60);
 PersistentConfigItem<byte> ee_OrientationModeColor_Sat  (ee_config, 0x32,   56);
-PersistentConfigItem<byte> ee_OrientationModeColor_Bri  (ee_config, 0x33,   51);
+PersistentConfigItem<byte> ee_OrientationModeColor_Bri  (ee_config, 0x33,   25);
 PersistentConfigItem<word> ee_OrientationModeOnSpeed    (ee_config, 0x34,  200);   // power on time in ms
-PersistentConfigItem<word> ee_OrientationModeOffSpeed   (ee_config, 0x36, 5000);   // power off time in ms
-PersistentConfigItem<word> ee_OrientationModeDuration   (ee_config, 0x38, 5000);   // mode duration in ms
+PersistentConfigItem<word> ee_OrientationModeOffSpeed   (ee_config, 0x36, 1000);   // power off time in ms
+PersistentConfigItem<word> ee_OrientationModeDuration   (ee_config, 0x38, 2000);   // mode duration in ms
 
 // alerts configuration [0x40-0x4f]
 PersistentConfigItem<word> ee_DropAlert_High            (ee_config, 0x40,  100);   // drop alert configuration - high (0 mean inactive)
@@ -144,6 +146,8 @@ private:
   bool m_onSwitchStatus;
   unsigned long m_onSwitchChangeStart;
   
+  DS1302 m_realTimeClock;
+  
 public:
   
   LightController(): 
@@ -151,7 +155,8 @@ public:
     m_startupTime(millis()),
     m_liDropOrientationModeStart(0),
     m_onSwitchStatus(false),
-    m_onSwitchChangeStart(0)
+    m_onSwitchChangeStart(0),
+    m_realTimeClock(DS1320_CE_PIN, DS1302_IO_PIN, DS1302_SCLK_PIN)
   {
   }
 
@@ -167,10 +172,53 @@ public:
       default: assert(false);
     }
   };
+  
+  void PrintTime(const Time &t)
+  {    
+    // Name the day of the week.
+    String day;
+   
+    switch (t.day) {
+      case Time::kSunday:    day = "Sunday";        break;
+      case Time::kMonday:    day = "Monday";        break;
+      case Time::kTuesday:   day = "Tuesday";       break;
+      case Time::kWednesday: day = "Wednesday";     break;
+      case Time::kThursday:  day = "Thursday";      break;
+      case Time::kFriday:    day = "Friday";        break;
+      case Time::kSaturday:  day = "Saturday";      break;
+      default:               day = "(unknown day)"; break;
+    }
+    
+    // Format the time and date and insert into the temporary buffer.
+    char buf[50];
+    snprintf(buf, sizeof(buf), "%s %04d-%02d-%02d %02d:%02d:%02d",
+             day.c_str(),
+             t.yr, t.mon, t.date,
+             t.hr, t.min, t.sec);
+
+    // Print the formatted string to serial so we can see the time.
+    Serial.println(buf);
+  }
+
+  void PrintTime()
+  {
+    // Get the current time and date from the chip.
+    PrintTime(m_realTimeClock.time());    
+  }
+  
   // returns true during the night mode time
   bool InNightModeTime()
   {
-    return false;  // TODO: fix, so far hard coded day mode    
+    // Get the current time and date from the chip.
+    Time t = m_realTimeClock.time();
+    
+    Serial.print(F("InNightModeTime: "));
+    PrintTime(t);
+    
+    word minute = (t.hr * 60) + t.min;
+    
+    // if we are in the day mode
+    return !((ee_NightModeTime_End <= minute) && (minute < ee_NightModeTime_Start));
   }
   
   void UpdateOnOffSwitch()
@@ -260,6 +308,20 @@ public:
       }
     }
   }
+
+  void UpdateIRSensorStatus()
+  {
+    int irSensorValue = digitalRead(IR_SENSOR_PIN);
+  
+    // if there is someone and the LEDs are disabled
+    if (irSensorValue == HIGH && !LightsActive()) {
+  
+      Serial.println(F("UpdateIRSensorStatus: IR sensor detects move while LEDs are off. Asking for the orientation mode."));
+      
+      // request the startup of the orientation mode
+      m_status = S_OFF_ORIENTATION_REQUESTED;
+    }
+  }
   
   void Update()
   {
@@ -337,6 +399,9 @@ public:
     
     // handle light intensity sensor input changes
     UpdateOnOffSwitch();
+
+    // handle the IR sensor state
+    UpdateIRSensorStatus();
   }
   
   virtual LightCommError HandleLiDropAlertDetected(uint16_t senderNode)
@@ -376,71 +441,76 @@ void setup()
   // initialize the serial communication to the PC
   Serial.begin(57600);    
 
+  // configure the ON/OFF switch pin as input
+  pinMode(ON_SWITCH_PIN, INPUT);
+  pinMode(IR_SENSOR_PIN, INPUT);
+
   // check the potential overlaps in the persisten configuration
   assert(ee_config.CheckOverlaps());
     
-  Serial.println("Light Controller");
+  Serial.println(F("Light Controller"));
 
-  Serial.print("RF24 configuration: {channel: ");
+  Serial.print(F("RF24 configuration: {channel: "));
   Serial.print(ee_rf24Channel);
-  Serial.print(", node_address: ");
+  Serial.print(F(", node_address: "));
   Serial.print(ee_rf24Address);
-  Serial.print(", led_driver_1_node_address: ");
+  Serial.print(F(", led_driver_1_node_address: "));
   Serial.print(ee_rf24LedDriver1Address);
-  Serial.print(", led_driver_2_node_address: ");
+  Serial.print(F(", led_driver_2_node_address: "));
   Serial.print(ee_rf24LedDriver2Address);
-  Serial.print(", led_driver_3_node_address: ");
+  Serial.print(F(", led_driver_3_node_address: "));
   Serial.print(ee_rf24LedDriver3Address);
-  Serial.print(", led_driver_4_node_address: ");
+  Serial.print(F(", led_driver_4_node_address: "));
   Serial.print(ee_rf24LedDriver4Address);
-  Serial.println("}");
+  Serial.println(F("}"));
 
-  Serial.println("Light configuration: ");
+  Serial.println(F("Light configuration: "));
   
-  Serial.print("  Full streght power (hue: ");
+  Serial.print(F("  Full streght power (hue: "));
   Serial.print(ee_FullStrenghtColor_Hue);
-  Serial.print(", sat: ");
+  Serial.print(F(", sat: "));
   Serial.print(ee_FullStrenghtColor_Sat);
-  Serial.print(", bri: ");
+  Serial.print(F(", bri: "));
   Serial.print(ee_FullStrenghtColor_Bri);
-  Serial.print(", on: ");
+  Serial.print(F(", on: "));
   Serial.print(ee_FullStrenghtOnSpeed);
-  Serial.print(", off: ");
+  Serial.print(F(", off: "));
   Serial.print(ee_FullStrenghtOffSpeed);
-  Serial.println("}");
+  Serial.println(F("}"));
   
-  Serial.print("  Night mode power (hue: ");
+  Serial.print(F("  Night mode power (hue: "));
   Serial.print(ee_NightModeColor_Hue);
-  Serial.print(", sat: ");
+  Serial.print(F(", sat: "));
   Serial.print(ee_NightModeColor_Sat);
-  Serial.print(", bri: ");
+  Serial.print(F(", bri: "));
   Serial.print(ee_NightModeColor_Bri);
-  Serial.print(", on: ");
+  Serial.print(F(", on: "));
   Serial.print(ee_NightModeOnSpeed);
-  Serial.print(", off: ");
+  Serial.print(F(", off: "));
   Serial.print(ee_NightModeOffSpeed);
-  Serial.print("}, night mode time {end: ");
+  Serial.print(F("}, night mode time {end: "));
   Serial.print(ee_NightModeTime_End);
-  Serial.print(", start: ");
+  Serial.print(F(", start: "));
   Serial.print(ee_NightModeTime_Start);
-  Serial.println("}");
+  Serial.println(F("}"));
   
-  Serial.print("  Light intensity drop alert (high: ");
+  Serial.print(F("  Light intensity drop alert (high: "));
   Serial.print(ee_DropAlert_High);
-  Serial.print(", low: ");
+  Serial.print(F(", low: "));
   Serial.print(ee_DropAlert_Low);
-  Serial.print(", milliseconds: ");
+  Serial.print(F(", milliseconds: "));
   Serial.print(ee_DropAlert_Ms);
-  Serial.println("}");
+  Serial.println(F("}"));
   
-  Serial.print("  Light intensity gradual alert (high: ");
+  Serial.print(F("  Light intensity gradual alert (high: "));
   Serial.print(ee_GradualAlert_High);
-  Serial.print(", low: ");
+  Serial.print(F(", low: "));
   Serial.print(ee_GradualAlert_Low);
-  Serial.println("}");
+  Serial.println(F("}"));
 
-  // configure the ON/OFF switch pin as input
-  pinMode(ON_SWITCH_PIN, INPUT);
+  // get & print the current time
+  Serial.println(F("Current time: "));
+  lightController.PrintTime();
 
   // initialize the network
   Serial.println("Initializing SPI");
