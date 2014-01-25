@@ -73,20 +73,6 @@ LightCommManager commManager(network);
  * The controller controls the operation of the LED driver module. It repetitively updates the RF24 network and handles the incomming messages
  * and monitors the inputs, detects and reports the alerts into the controller device.
  *
- * States of the controller:
- *   SLEEPING:         the LEDs are not operating and the LED power source is switched off
- *   STANDBY:          the LEDs are not operating but the LED power source is switched on
- *   ON_TRANSITION:    the LEDs are in transition from one RGB to another, while source or target can also be 0,0,0 (off)
- *   ON:               the LEDs are operating according to the required RGB settings
- *   RESET_PENDING:    the reset was required and the device wait for it to be done
- *
- * Transitions:
- *   SLEEPING -> STANDBY                       - WAKE command received, the power source is switched on
- *   (*) -> SLEEPING                           - SLEEP command received, the power source is switched off and the RGB to {0, 0, 0}
- *   STANDBY|ON|ON_TRANSITION -> ON_TRANSITION - SetRGB command received
- *   ON_TRANSITION -> STANDBY                  - automatically after transition duration expires and if new RGB is {0, 0, 0}
- *   ON_TRANSITION -> ON                       - automatically after transition duration expires and if new RGB is non zero
- *   (*) -> RESET_PENDING                      - the machine will be reset after the network update (response sent to the controller)
  */
 class LedDriverController: public ILightCommLightDriverMessageHandler {
 private:
@@ -94,6 +80,7 @@ private:
   // handles the LEDs PWM with the transitions, etc.
   class LEDPowerHandler {
   private:
+    enum PowerMode { PM_OFF, PM_STANDBY, PM_ON };
   
     LED rgbLedDriver;
   
@@ -102,7 +89,10 @@ private:
     HSB m_currentColor;
     unsigned long m_transitionStartTime;
     unsigned long m_transitionDuration;
-    bool m_ledPowerOn;    
+    bool m_transitionFinished;
+    
+    PowerMode m_powerMode;    
+    unsigned long m_standByStartTime;
         
   public:
   
@@ -113,10 +103,11 @@ private:
       m_currentColor(),
       m_transitionStartTime(millis()),   
       m_transitionDuration(0),
-      m_ledPowerOn(false)
+      m_transitionFinished(true),
+      m_powerMode(PM_OFF),
+      m_standByStartTime(0)
     {
       rgbLedDriver.off();
-      // rgbLedDriver.writeHSB(blue);
       m_targetColor.hue = 0;
       m_targetColor.sat = 0;
       m_targetColor.bri = 0;
@@ -124,95 +115,99 @@ private:
       m_currentColor.sat = 0;
       m_currentColor.bri = 0;
     }
-      
+
+    bool LightsOn() const
+    {
+      // the current color is not black or a transition is in progress
+      return (m_currentColor.hue != 0 || m_currentColor.sat != 0 || m_currentColor.bri != 0 || !m_transitionFinished);  
+    }
+    
     void Update()
     {
-      unsigned long now = millis();
+      // if we are handling the light transitions
+      if (!m_transitionFinished) {
+
+        unsigned long now = millis();
       
-      bool colorChanged = false;
+        bool colorChanged = false;
       
-      // if we are with the scheduled transition time
-      if ((now - m_transitionStartTime) < m_transitionDuration) {
+        // if we are with the scheduled transition time
+        if ((now - m_transitionStartTime) < m_transitionDuration) {
        
-        // calculate the current step
-        uint8_t step = uint8_t(255 * float(now - m_transitionStartTime) / float(m_transitionDuration));
+          // calculate the current step
+          uint8_t step = uint8_t(255 * float(now - m_transitionStartTime) / float(m_transitionDuration));
         
-        // calculate the current color
-        HSB newColor = mix(m_originalColor, m_targetColor, step);
+          // calculate the current color
+          HSB newColor = mix(m_originalColor, m_targetColor, step);
         
-        // if the new color is different from the original current color
-        if (m_currentColor.hue != newColor.hue || m_currentColor.sat != newColor.sat || m_currentColor.bri != newColor.bri) {
+          // if the new color is different from the original current color
+          if (m_currentColor.hue != newColor.hue || m_currentColor.sat != newColor.sat || m_currentColor.bri != newColor.bri) {
           
-          // keep the calculated color
-          m_currentColor = newColor;
+            // keep the calculated color
+            m_currentColor = newColor;
  
-          // request output update
-          colorChanged = true;
-        }
+            // request output update
+            colorChanged = true;
+          }
         
-      } else {
+        } else {
         
-        bool standbyTransitionStarted = false;
-        
-        // after the transition the target color becomes the current one
-        if (m_currentColor.hue != m_targetColor.hue || m_currentColor.sat != m_targetColor.sat || m_currentColor.bri != m_targetColor.bri) {
+          // the transition has just finished
+          m_transitionFinished = true;
           
           // set the target color as the new current
           m_currentColor = m_targetColor;
-
-          // request output update
-          colorChanged = true;
 
           // if we are changing the color to black (0, 0, 0)
           if (m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0) {
          
             // let's start the power off transition 
-            m_originalColor = m_currentColor;
-            m_targetColor = m_currentColor;
-            m_transitionStartTime = now;
-            m_transitionDuration = ee_LedPowerStandbyDuration;
-            
-            standbyTransitionStarted = true;
+            m_powerMode = PM_STANDBY;
+
+            m_standByStartTime = millis();            
           }
         }
-        
-        // if the power is still ON andthe standby duration trasition has elapsed
-        if (!standbyTransitionStarted && m_ledPowerOn && m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0 && m_targetColor.hue == 0 && m_targetColor.sat == 0 && m_targetColor.bri == 0) {
- 
-          Serial.println(F("Turning LED power OFF."));
-          
-          // power the LED off
-          digitalWrite(LED_POWER_RELAY_PIN, LOW);
-          
-          // mark the status
-          m_ledPowerOn = false;
-          
-          // reset the transition
-          m_transitionDuration = 0;
-        }
-      }
       
-      // if the color has been changed
-      if (colorChanged) {
+        // if the color has been changed
+        if (colorChanged) {
 
-        RGB rgb = HSBtoRGB(m_currentColor);
+          RGB rgb = HSBtoRGB(m_currentColor);
         
-        Serial.print(F("HSB color update { hue: "));
-        Serial.print(m_currentColor.hue);
-        Serial.print(F(", sat: "));
-        Serial.print(m_currentColor.sat);
-        Serial.print(F(", bri: "));
-        Serial.print(m_currentColor.bri);
-        Serial.print(F("}, RGB = { red: "));
-        Serial.print(rgb.red);
-        Serial.print(F(", green: "));
-        Serial.print(rgb.green);
-        Serial.print(F(", blue: "));
-        Serial.print(rgb.blue);
-        Serial.println(F("}."));
+          Serial.print(F("HSB color update { hue: "));
+          Serial.print(m_currentColor.hue);
+          Serial.print(F(", sat: "));
+          Serial.print(m_currentColor.sat);
+          Serial.print(F(", bri: "));
+          Serial.print(m_currentColor.bri);
+          Serial.print(F("}, RGB = { red: "));
+          Serial.print(rgb.red);
+          Serial.print(F(", green: "));
+          Serial.print(rgb.green);
+          Serial.print(F(", blue: "));
+          Serial.print(rgb.blue);
+          Serial.println(F("}."));
 
-        // update the PWM outputs 
-        rgbLedDriver.writeRGB(rgb);
+          // update the PWM outputs 
+          rgbLedDriver.writeRGB(rgb);
+        }
+        
+      } else {
+        
+        // if we are in the standby mode
+        if (m_powerMode == PM_STANDBY) {
+          
+          // if it has elapsed
+          if ((millis() - m_standByStartTime) < ee_LedPowerStandbyDuration) {
+            
+            Serial.println(F("Turning LED power OFF."));
+          
+            // power the LED off
+            digitalWrite(LED_POWER_RELAY_PIN, LOW);
+          
+            // mark the status
+            m_powerMode = PM_OFF;
+          }
+        }
       }
     }
     
@@ -221,16 +216,20 @@ private:
       // update the current color
       Update();
       
-      // if the power is OFF and new color is not black
-      if (!m_ledPowerOn && (newTargetColor.hue != 0 || newTargetColor.sat != 0 || newTargetColor.bri != 0)) {
+      // if new color is not black, set and keep the power ON
+      if (newTargetColor.hue != 0 || newTargetColor.sat != 0 || newTargetColor.bri != 0) {
        
-        Serial.println(F("Turning LED power ON."));
-        
-        // power the LEDs on
-        digitalWrite(LED_POWER_RELAY_PIN, HIGH);
+        // if the power is OFF
+        if (m_powerMode == PM_OFF) {
           
-        // mark the status
-        m_ledPowerOn = true; 
+          Serial.println(F("Turning LED power ON."));
+        
+          // power the LEDs on
+          digitalWrite(LED_POWER_RELAY_PIN, HIGH);
+        }
+ 
+        // set the power status
+        m_powerMode = PM_ON; 
       }
       
       // start a new transition
@@ -238,18 +237,12 @@ private:
       m_targetColor = newTargetColor;         
       m_transitionStartTime = millis();
       m_transitionDuration = transitionDuration;
+      m_transitionFinished = false;
     }
     
   };
   
 public:
-  enum Status {
-    S_SLEEPING           = 1,
-    S_STANDBY            = 2,
-    S_ON_TRANSITION      = 3,
-    S_ON                 = 4,
-    S_RESET_PENDING      = 5
-  };
   
   enum LightSensorAlertStatus {
     LSSA_ALERT_INACTIVE    = 0,  // initial status, the alert is deactivated
@@ -259,7 +252,6 @@ public:
   };
     
 private:
-  Status m_status;
   
   // light intensity drop alert status and configuration
   LightSensorAlertStatus m_liDropAlertStatus;
@@ -274,12 +266,13 @@ private:
   word m_liGradualAlertLow;
 
   // LED power handler
-  LEDPowerHandler ledPowerHandler;
+  LEDPowerHandler m_ledPowerHandler;
+
+  bool m_ResetIsPending;
   
 public:
   
   LedDriverController(): 
-    m_status(S_SLEEPING),
     m_liDropAlertStatus(LSSA_ALERT_INACTIVE),
     m_liDropAlertHigh(0),
     m_liDropAlertLow(0),
@@ -288,14 +281,15 @@ public:
     m_liGradualAlertStatus(LSSA_ALERT_INACTIVE),
     m_liGradualAlertHigh(0),
     m_liGradualAlertLow(0),
-    ledPowerHandler()
+    m_ledPowerHandler(),
+    m_ResetIsPending(false)
   {
   }
 
   void UpdateLISensor()
   {
     // if the LEDs are not on (and don't disturb the light sensor)
-    if (m_status == S_SLEEPING || m_status == S_STANDBY) {
+    if (!m_ledPowerHandler.LightsOn()) {
     
       // read the current light intensity
       int lightIntensity = analogRead(LIGHT_SENSOR_PIN);    
@@ -413,7 +407,7 @@ public:
   void Update()
   {
     // if the reset has been required
-    if (m_status == S_RESET_PENDING) {
+    if (m_ResetIsPending) {
     
       // TODO:  
     }
@@ -425,7 +419,7 @@ public:
     UpdateLISensor();
     
     // update the LED handler and power status
-    ledPowerHandler.Update();
+    m_ledPowerHandler.Update();
   }
   
   virtual LightCommError HandleReset(uint16_t senderNode)
@@ -433,7 +427,7 @@ public:
     Serial.println("Reset command received.");
     
     // register reset request
-    m_status = S_RESET_PENDING;
+    m_ResetIsPending = true;
     
     return 0;
   }
@@ -496,7 +490,7 @@ public:
     newTargetColor.bri = message.GetBri();
     
     // start a new transition in the LED handler
-    ledPowerHandler.StartTransition(newTargetColor, message.GetMs());
+    m_ledPowerHandler.StartTransition(newTargetColor, message.GetMs());
     
     return 0;
   }
