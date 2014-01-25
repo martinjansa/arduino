@@ -170,7 +170,7 @@ private:
 
 public:
   LightCommMessage_SetHSBColor(): m_hue(0), m_sat(0), m_bri(0), m_ms(0) {}  
-  LightCommMessage_SetHSBColor(word hue, byte sat, byte bri, word ms): m_hue(hue), m_sat(sat), m_bri(bri) {}  
+  LightCommMessage_SetHSBColor(word hue, byte sat, byte bri, word ms): m_hue(hue), m_sat(sat), m_bri(bri), m_ms(ms) {}  
 
   word GetHue() const {
     return m_hue;
