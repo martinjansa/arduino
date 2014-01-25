@@ -157,6 +157,7 @@ private:
           
           // set the target color as the new current
           m_currentColor = m_targetColor;
+          colorChanged = true;
 
           // if we are changing the color to black (0, 0, 0)
           if (m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0) {
@@ -197,7 +198,7 @@ private:
         if (m_powerMode == PM_STANDBY) {
           
           // if it has elapsed
-          if ((millis() - m_standByStartTime) < ee_LedPowerStandbyDuration) {
+          if ((millis() - m_standByStartTime) > ee_LedPowerStandbyDuration) {
             
             Serial.println(F("Turning LED power OFF."));
           
@@ -213,9 +214,16 @@ private:
     
     void StartTransition(const HSB &newTargetColor, unsigned long transitionDuration)
     {
-      // update the current color
-      Update();
-      
+      Serial.print(F("Starting transition for target color { hue: "));
+      Serial.print(newTargetColor.hue);
+      Serial.print(F(", sat: "));
+      Serial.print(newTargetColor.sat);
+      Serial.print(F(", bri: "));
+      Serial.print(newTargetColor.bri);
+      Serial.print(F("} withing "));
+      Serial.print(transitionDuration);
+      Serial.println(F(" ms."));
+
       // if new color is not black, set and keep the power ON
       if (newTargetColor.hue != 0 || newTargetColor.sat != 0 || newTargetColor.bri != 0) {
        
