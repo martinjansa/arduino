@@ -20,6 +20,8 @@
 #include <RF24NetworkWrapper.h>
 #include <RF24NetworkWrapper_Mock-Loopback.h>
 
+#include <RGBlink.h>
+
 #include <LightCommManager.h>
 #include <LightCommMessage.h> 
 
@@ -49,11 +51,19 @@ static const int RF24_MISO_PIN          = 12;  // (cannot be changed probably, s
 static const int RF24_SCK_PIN           = 13;  // (cannot be changed probably, see RF24 if you consider this options)
 
 // persistent configuration
-PersistentConfig ee_config;
-PersistentConfigItem<byte> ee_ledDriverId(ee_config, 0);     // 1 byte, valid values are 1, 2, 3, 4
-PersistentConfigItem<uint8_t> ee_rf24Channel(ee_config, 1);  // 1 byte, RF24 channel
-PersistentConfigItem<uint16_t> ee_rf24Address(ee_config, 2); // 2 bytes, RF24 node address
-PersistentConfigItem<uint16_t> ee_rf24ControllerAddress(ee_config, 4); // 2 bytes, RF24 controller node address
+PersistentConfig ee_config(false);
+
+  // ee_ledDriverId = 2;
+  // ee_rf24Channel = 90;
+  // ee_rf24Address = 2;
+  // ee_rf24ControllerAddress = 0;
+
+PersistentConfigItem<byte>      ee_ledDriverId              (ee_config, 0x00,     2);  // valid values are 1, 2, 3, 4
+PersistentConfigItem<uint8_t>   ee_rf24Channel              (ee_config, 0x01,    90);  // RF24 channel
+PersistentConfigItem<uint16_t>  ee_rf24Address              (ee_config, 0x02,     2);  // RF24 node address
+PersistentConfigItem<uint16_t>  ee_rf24ControllerAddress    (ee_config, 0x04,     0);  // RF24 controller node address
+
+PersistentConfigItem<word>      ee_LedPowerStandbyDuration  (ee_config, 0x06, 10000);  // 10 seconds
 
 // initialize radio
 RF24 rf24Radio(RF24_CHIP_ENABLE_PIN, RF24_CHIP_SELECT_PIN);
@@ -84,6 +94,128 @@ LightCommManager commManager(network);
  *   (*) -> RESET_PENDING                      - the machine will be reset after the network update (response sent to the controller)
  */
 class LedDriverController: public ILightCommLightDriverMessageHandler {
+private:
+
+  // handles the LEDs PWM with the transitions, etc.
+  class LEDPowerHandler {
+  private:
+  
+    LED rgbLedDriver;
+  
+    HSB m_originalColor;
+    HSB m_targetColor;
+    HSB m_currentColor;
+    unsigned long m_transitionStartTime;
+    unsigned long m_transitionDuration;
+    bool m_ledPowerOn;    
+        
+  public:
+  
+    LEDPowerHandler():
+      rgbLedDriver(RED_PWM_PIN, GREEN_PWM_PIN, BLUE_PWM_PIN),
+      m_originalColor(),
+      m_targetColor(),
+      m_currentColor(),
+      m_transitionStartTime(millis()),   
+      m_transitionDuration(0),
+      m_ledPowerOn(false)
+    {
+      m_originalColor.hue = 0;
+      m_originalColor.sat = 0;
+      m_originalColor.bri = 0;
+    }
+      
+    void Update()
+    {
+      unsigned long now = millis();
+      
+      bool colorChanged = false;
+      
+      // if we are with the scheduled transition time
+      if ((now - m_transitionStartTime) < m_transitionDuration) {
+       
+        // calculate the current step
+        uint8_t step = uint8_t(255 * float(now - m_transitionStartTime) / float(m_transitionDuration));
+        
+        // calculate the current color
+        HSB newColor = mix(m_originalColor, m_targetColor, step);
+        
+        // if the new color is different from the original current color
+        if (m_currentColor != newColor) {
+          
+          // keep the calculated color
+          m_currentColor = newColor;
+ 
+          // request output update
+          colorChanged = true;
+        }
+        
+      } else {
+        
+        // after the transition the target color becomes the current one
+        if (m_currentColor != m_targetColor) {
+          
+          // set the target color as the new current
+          m_currentColor = m_targetColor;
+
+          // request output update
+          colorChanged = true;
+
+          // if we are changing the color to black (0, 0, 0)
+          if (m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0) {
+         
+            // let's start the power off transition 
+            m_originalColor = m_currentColor;
+            m_transitionStartTime = now;
+            m_transitionDuration = RGB_TRANSITION_DURATION;
+          }
+        }
+        
+        // if the power is still ON andthe standby duration trasition has elapsed
+        if (m_ledPowerOn && m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0 && m_targetColor.hue == 0 && m_targetColor.sat == 0 && m_targetColor.bri == 0) {
+       
+          // power the LED off
+          digitalWrite(LED_POWER_RELAY_PIN, LOW);
+          
+          // mark the status
+          m_ledPowerOn = false;
+          
+          // reset the transition
+          m_transitionDuration = 0;
+        }
+      }
+      
+      // if the color has been changed
+      if (colorChanged) {
+       
+        // update the PWM outputs 
+        rgbLedDriver.writeHSB(m_currentColor);
+      }
+    }
+    
+    void StartTransition(const HSB &newTargetColor, unsigned long transitionDuration)
+    {
+      // update the current color
+      Update();
+      
+      // if the power is OFF and new color is not black
+      if (!m_ledPowerOn && (newTargetColor.hue != 0 || newTargetColor.sat != 0 || newTargetColor.bri != 0)) {
+       
+        // power the LEDs on
+        digitalWrite(LED_POWER_RELAY_PIN, HIGH);
+          
+        // mark the status
+        m_ledPowerOn = true; 
+      }
+      
+      // start a new transition
+      m_targetColor = newTargetColor;         
+      m_transitionStartTime = millis();
+      m_transitionDuration = transitionDuration;
+    }
+    
+  };
+  
 public:
   enum Status {
     S_SLEEPING           = 1,
@@ -114,7 +246,10 @@ private:
   LightSensorAlertStatus m_liGradualAlertStatus;
   word m_liGradualAlertHigh;
   word m_liGradualAlertLow;
-    
+
+  // LED power handler
+  LEDPowerHandler ledPowerHandler;
+  
 public:
   
   LedDriverController(): 
@@ -126,22 +261,11 @@ public:
     m_liDropAlertLastTimeAboveHigh(),
     m_liGradualAlertStatus(LSSA_ALERT_INACTIVE),
     m_liGradualAlertHigh(0),
-    m_liGradualAlertLow(0)
+    m_liGradualAlertLow(0),
+    ledPowerHandler()
   {
   }
 
-  void SetLedPower(bool on)
-  {
-    Serial.print(F("Setting LED power relay "));
-    if (on) {
-      Serial.println(F("ON."));
-    } else {
-      Serial.println(F("OFF."));
-    }      
-    // write to the pin that handles the relay
-    digitalWrite(LED_POWER_RELAY_PIN, (on? HIGH: LOW));
-  }
-  
   void UpdateLISensor()
   {
     // if the LEDs are not on (and don't disturb the light sensor)
@@ -273,6 +397,9 @@ public:
     
     // handle light intensity sensor input changes
     UpdateLISensor();
+    
+    // update the LED handler and power status
+    ledPowerHandler.Update();
   }
   
   virtual LightCommError HandleReset(uint16_t senderNode)
@@ -289,20 +416,37 @@ public:
   {
     Serial.println("Query inputs command received.");
     
-    // there should be some response in here
+    // TODO: there should be some response in here
   }
 
   virtual LightCommError HandleSleep(uint16_t senderNode)
-  {
+  {/*
     Serial.println("Sleep command received.");
     
-    //if (state == 
+    // the reset pending has a higher priority, otherwise let's deactivate the power relay
+    if (m_state != S_RESET_PENDING) {
+
+      SetLedPower(false);
+
+      m_state = S_SLEEPING;   
+    }
+    */
     return 0;
   }
 
   virtual LightCommError HandleWake(uint16_t senderNode)
-  {
+  {/*
     Serial.println("Wake command received.");
+
+    // the reset pending has a higher priority, otherwise let's activate the power relay
+    if (m_state != S_RESET_PENDING) {
+
+      SetLedPower(true);
+
+      m_state = S_STANDBY;
+      // TODO: LEDs?   
+    }*/
+    
     return 0;
   }
 
@@ -310,7 +454,7 @@ public:
 
   virtual LightCommError HandleSetHSBColor(uint16_t senderNode, const LightCommMessage_SetHSBColor &message)
   {
-    Serial.print("Set HSB color command received { hue: ");
+    Serial.print("Set HSB command received { hue: ");
     Serial.print(message.GetHue(), DEC);
     Serial.print(", sat: ");
     Serial.print(message.GetSat(), DEC);
@@ -319,9 +463,14 @@ public:
     Serial.print(", ms: ");
     Serial.print(message.GetMs(), DEC);
     Serial.println("}");
+
+    HSB newTargetColor;
+    newTargetColor.hue = message.GetHue();
+    newTargetColor.sat = message.GetSat();
+    newTargetColor.bri = message.GetBri();
     
-    // TODO: hand over to the LED PWM driver
-    // TODO: activate power adaptor for LEDs
+    // start a new transition in the LED handler
+    ledPowerHandler.StartTransition(newTargetColor, message.GetMs());
     
     return 0;
   }
@@ -391,12 +540,6 @@ void setup()
 
   // check the potential overlaps in the persisten configuration
   assert(ee_config.CheckOverlaps());
-  
-  // uncomment to write initial values into the EEPROM
-  // ee_ledDriverId = 2;
-  // ee_rf24Channel = 90;
-  // ee_rf24Address = 2;
-  // ee_rf24ControllerAddress = 0;
   
   Serial.print("LED driver #");
   Serial.println(ee_ledDriverId);
