@@ -115,6 +115,8 @@ private:
       m_transitionDuration(0),
       m_ledPowerOn(false)
     {
+      rgbLedDriver.off();
+      // rgbLedDriver.writeHSB(blue);
       m_targetColor.hue = 0;
       m_targetColor.sat = 0;
       m_targetColor.bri = 0;
@@ -192,17 +194,25 @@ private:
       
       // if the color has been changed
       if (colorChanged) {
-       
+
+        RGB rgb = HSBtoRGB(m_currentColor);
+        
         Serial.print(F("HSB color update { hue: "));
         Serial.print(m_currentColor.hue);
         Serial.print(F(", sat: "));
         Serial.print(m_currentColor.sat);
         Serial.print(F(", bri: "));
         Serial.print(m_currentColor.bri);
+        Serial.print(F("}, RGB = { red: "));
+        Serial.print(rgb.red);
+        Serial.print(F(", green: "));
+        Serial.print(rgb.green);
+        Serial.print(F(", blue: "));
+        Serial.print(rgb.blue);
         Serial.println(F("}."));
 
         // update the PWM outputs 
-        rgbLedDriver.writeHSB(m_currentColor);
+        rgbLedDriver.writeRGB(rgb);
       }
     }
     
