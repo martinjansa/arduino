@@ -50,7 +50,7 @@ static const int RF24_MISO_PIN          = 12;  // (cannot be changed probably, s
 static const int RF24_SCK_PIN           = 13;  // (cannot be changed probably, see RF24 if you consider this options)
 
 // persistent configuration
-PersistentConfig ee_config(false);
+PersistentConfig ee_config(true);
 
 // network configuration [0x00-x0f]
 PersistentConfigItem<uint8_t> ee_rf24Channel            (ee_config, 0x00,  90);  // RF24 channel
@@ -64,24 +64,24 @@ PersistentConfigItem<uint16_t> ee_rf24LedDriver4Address (ee_config, 0x09,   4); 
 
 // full strength mode [0x10-0x1f]  - Warm white: RGB = [255, 255, 200], HSB = [60, 22, 100]
 PersistentConfigItem<word> ee_FullStrenghtColor_Hue     (ee_config, 0x10,   60);
-PersistentConfigItem<byte> ee_FullStrenghtColor_Sat     (ee_config, 0x12,   22);
-PersistentConfigItem<byte> ee_FullStrenghtColor_Bri     (ee_config, 0x13,  100);
-PersistentConfigItem<word> ee_FullStrenghtOnSpeed       (ee_config, 0x14,  200);   // power on time in ms
-PersistentConfigItem<word> ee_FullStrenghtOffSpeed      (ee_config, 0x16,  400);   // power off time in ms
+PersistentConfigItem<byte> ee_FullStrenghtColor_Sat     (ee_config, 0x12,   56);
+PersistentConfigItem<byte> ee_FullStrenghtColor_Bri     (ee_config, 0x13,  255);
+PersistentConfigItem<word> ee_FullStrenghtOnSpeed       (ee_config, 0x14,  2000);   // power on time in ms
+PersistentConfigItem<word> ee_FullStrenghtOffSpeed      (ee_config, 0x16,  2000);   // power off time in ms
 
 // night mode [0x20-0x2f]  - Warm white 50%: RGB = [128, 128, 100], HSB = [60, 22, 50]
 PersistentConfigItem<word> ee_NightModeColor_Hue        (ee_config, 0x20,   60);
-PersistentConfigItem<byte> ee_NightModeColor_Sat        (ee_config, 0x22,   20);
-PersistentConfigItem<byte> ee_NightModeColor_Bri        (ee_config, 0x23,   50);
-PersistentConfigItem<word> ee_NightModeOnSpeed          (ee_config, 0x24,  500);   // power on time in ms
-PersistentConfigItem<word> ee_NightModeOffSpeed         (ee_config, 0x26, 1000);   // power off time in ms
+PersistentConfigItem<byte> ee_NightModeColor_Sat        (ee_config, 0x22,   56);
+PersistentConfigItem<byte> ee_NightModeColor_Bri        (ee_config, 0x23,  128);
+PersistentConfigItem<word> ee_NightModeOnSpeed          (ee_config, 0x24, 2000);   // power on time in ms
+PersistentConfigItem<word> ee_NightModeOffSpeed         (ee_config, 0x26, 2000);   // power off time in ms
 PersistentConfigItem<word> ee_NightModeTime_End         (ee_config, 0x28,  420);   // minute of the end of the night mode (7:00)
 PersistentConfigItem<word> ee_NightModeTime_Start       (ee_config, 0x2a, 1230);   // minute of the start of the night mode (20:30)
 
 // orientation mode [0x30-0x3f] - Warm white 20%: RGB = [51, 51, 40], HSB = [60, 22, 20]
 PersistentConfigItem<word> ee_OrientationModeColor_Hue  (ee_config, 0x30,   60);
-PersistentConfigItem<byte> ee_OrientationModeColor_Sat  (ee_config, 0x32,   20);
-PersistentConfigItem<byte> ee_OrientationModeColor_Bri  (ee_config, 0x33,   20);
+PersistentConfigItem<byte> ee_OrientationModeColor_Sat  (ee_config, 0x32,   56);
+PersistentConfigItem<byte> ee_OrientationModeColor_Bri  (ee_config, 0x33,   51);
 PersistentConfigItem<word> ee_OrientationModeOnSpeed    (ee_config, 0x34,  200);   // power on time in ms
 PersistentConfigItem<word> ee_OrientationModeOffSpeed   (ee_config, 0x36, 5000);   // power off time in ms
 PersistentConfigItem<word> ee_OrientationModeDuration   (ee_config, 0x38, 5000);   // mode duration in ms
@@ -169,7 +169,7 @@ public:
   // returns true during the night mode time
   bool InNightModeTime()
   {
-    return false;  // TODO: fix, so far hard coded day mode    
+    return true;  // TODO: fix, so far hard coded day mode    
   }
   
   void UpdateOnOffSwitch()
@@ -230,7 +230,7 @@ public:
           
         } else {
           
-          Serial.println(F("UpdateOnOffSwitch: switch has just turned OFF, deactivation LEDs."));
+          Serial.println(F("UpdateOnOffSwitch: switch has just turned OFF, deactivating LEDs."));
 
           hue = 0;
           sat = 0;
