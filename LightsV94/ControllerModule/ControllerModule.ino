@@ -124,12 +124,13 @@ LightCommManager commManager(network);
 class LightController: public ILightCommControllerMessageHandler {
 public:
   enum Status {
-    S_UNINITIALIZED        = 1,
-    S_OFF                  = 2,
-    S_OFF_ORIENTATION      = 3,
-    S_ON                   = 4,
-    S_ON_NIGHT_MODE        = 5,
-    S_ON_ORIENTATION       = 6
+    S_UNINITIALIZED              = 1,
+    S_OFF                        = 2,
+    S_OFF_ORIENTATION_REQUESTED  = 3,
+    S_OFF_ORIENTATION            = 4,
+    S_ON                         = 5,
+    S_ON_NIGHT_MODE              = 6,
+    S_ON_ORIENTATION             = 7
   };
       
 private:
@@ -169,7 +170,7 @@ public:
   // returns true during the night mode time
   bool InNightModeTime()
   {
-    return true;  // TODO: fix, so far hard coded day mode    
+    return false;  // TODO: fix, so far hard coded day mode    
   }
   
   void UpdateOnOffSwitch()
@@ -299,8 +300,41 @@ public:
       m_status = S_OFF;
     }
 
-    // Serial.println("Update: ON/OFF switch status.");
-
+    // handle the orientation mode start (from the li drop command)
+    if (m_status == S_OFF_ORIENTATION_REQUESTED) {
+      
+      // reset the flag
+      m_status = S_ON_ORIENTATION;
+      m_liDropOrientationModeStart = millis();
+    
+      // TODO: send the HSB request to all the LED drivers
+      bool result = commManager.SetLightDriverHSBColor(ee_rf24LedDriver2Address, ee_OrientationModeColor_Hue, ee_OrientationModeColor_Sat, ee_OrientationModeColor_Bri, ee_OrientationModeOnSpeed);
+      if (result) {
+        Serial.println(F("UpdateOrientationMode: message sending succeeded."));
+      } else {
+        Serial.println(F("UpdateOrientationMode: message sending FAILED."));
+      }
+      
+    } else {
+      
+      // if we are in the S_ON_ORIENTATION mode
+      if (m_status == S_ON_ORIENTATION) {
+        
+        // check it's expiration
+        if ((millis() - m_liDropOrientationModeStart) > ee_OrientationModeDuration) {
+         
+          // TODO: send the HSB request to all the LED drivers
+          bool result = commManager.SetLightDriverHSBColor(ee_rf24LedDriver2Address, 0, 0, 0, ee_OrientationModeOffSpeed);
+          if (result) {
+            Serial.println(F("UpdateOrientationMode: message sending succeeded."));
+          } else {
+            Serial.println(F("UpdateOrientationMode: message sending FAILED."));
+          }
+          m_status = S_OFF;          
+        }
+      }
+    }
+    
     // handle light intensity sensor input changes
     UpdateOnOffSwitch();
   }
@@ -309,7 +343,8 @@ public:
   {
     Serial.println(F("Light intensity drop alert received."));
     
-    // TODO:
+    // requst the orientation mode
+    m_status = S_OFF_ORIENTATION_REQUESTED;
     
     return 0;
   }
