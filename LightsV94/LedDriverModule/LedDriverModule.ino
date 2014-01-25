@@ -26,11 +26,6 @@
 #include <LightCommMessage.h> 
 
 
-// transactions durations
-static const unsigned long WAKING_UP_DURATION        = 50;
-static const unsigned long RGB_TRANSITION_DURATION   = 500;
-
-
 // analog pins
 static const int LIGHT_SENSOR_PIN       = A0; 
 
@@ -120,9 +115,12 @@ private:
       m_transitionDuration(0),
       m_ledPowerOn(false)
     {
-      m_originalColor.hue = 0;
-      m_originalColor.sat = 0;
-      m_originalColor.bri = 0;
+      m_targetColor.hue = 0;
+      m_targetColor.sat = 0;
+      m_targetColor.bri = 0;
+      m_currentColor.hue = 0;
+      m_currentColor.sat = 0;
+      m_currentColor.bri = 0;
     }
       
     void Update()
@@ -141,7 +139,7 @@ private:
         HSB newColor = mix(m_originalColor, m_targetColor, step);
         
         // if the new color is different from the original current color
-        if (m_currentColor != newColor) {
+        if (m_currentColor.hue != newColor.hue || m_currentColor.sat != newColor.sat || m_currentColor.bri != newColor.bri) {
           
           // keep the calculated color
           m_currentColor = newColor;
@@ -152,8 +150,10 @@ private:
         
       } else {
         
+        bool standbyTransitionStarted = false;
+        
         // after the transition the target color becomes the current one
-        if (m_currentColor != m_targetColor) {
+        if (m_currentColor.hue != m_targetColor.hue || m_currentColor.sat != m_targetColor.sat || m_currentColor.bri != m_targetColor.bri) {
           
           // set the target color as the new current
           m_currentColor = m_targetColor;
@@ -166,14 +166,19 @@ private:
          
             // let's start the power off transition 
             m_originalColor = m_currentColor;
+            m_targetColor = m_currentColor;
             m_transitionStartTime = now;
-            m_transitionDuration = RGB_TRANSITION_DURATION;
+            m_transitionDuration = ee_LedPowerStandbyDuration;
+            
+            standbyTransitionStarted = true;
           }
         }
         
         // if the power is still ON andthe standby duration trasition has elapsed
-        if (m_ledPowerOn && m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0 && m_targetColor.hue == 0 && m_targetColor.sat == 0 && m_targetColor.bri == 0) {
-       
+        if (!standbyTransitionStarted && m_ledPowerOn && m_currentColor.hue == 0 && m_currentColor.sat == 0 && m_currentColor.bri == 0 && m_targetColor.hue == 0 && m_targetColor.sat == 0 && m_targetColor.bri == 0) {
+ 
+          Serial.println(F("Turning LED power OFF."));
+          
           // power the LED off
           digitalWrite(LED_POWER_RELAY_PIN, LOW);
           
@@ -188,6 +193,14 @@ private:
       // if the color has been changed
       if (colorChanged) {
        
+        Serial.print(F("HSB color update { hue: "));
+        Serial.print(m_currentColor.hue);
+        Serial.print(F(", sat: "));
+        Serial.print(m_currentColor.sat);
+        Serial.print(F(", bri: "));
+        Serial.print(m_currentColor.bri);
+        Serial.println(F("}."));
+
         // update the PWM outputs 
         rgbLedDriver.writeHSB(m_currentColor);
       }
@@ -201,6 +214,8 @@ private:
       // if the power is OFF and new color is not black
       if (!m_ledPowerOn && (newTargetColor.hue != 0 || newTargetColor.sat != 0 || newTargetColor.bri != 0)) {
        
+        Serial.println(F("Turning LED power ON."));
+        
         // power the LEDs on
         digitalWrite(LED_POWER_RELAY_PIN, HIGH);
           
@@ -209,6 +224,7 @@ private:
       }
       
       // start a new transition
+      m_originalColor = m_currentColor;
       m_targetColor = newTargetColor;         
       m_transitionStartTime = millis();
       m_transitionDuration = transitionDuration;
@@ -541,15 +557,18 @@ void setup()
   // check the potential overlaps in the persisten configuration
   assert(ee_config.CheckOverlaps());
   
-  Serial.print("LED driver #");
+  Serial.print(F("LED driver #"));
   Serial.println(ee_ledDriverId);
-  Serial.print("RF24 configuration: {channel: ");
+  Serial.print(F("RF24 configuration: {channel: "));
   Serial.print(ee_rf24Channel);
-  Serial.print(", node_address: ");
+  Serial.print(F(", node_address: "));
   Serial.print(ee_rf24Address);
-  Serial.print(", controller_node_address: ");
+  Serial.print(F(", controller_node_address: "));
   Serial.print(ee_rf24ControllerAddress);
-  Serial.println("}");
+  Serial.println(F("}"));
+  
+  Serial.print(F("LED power standby duration "));
+  Serial.println(ee_LedPowerStandbyDuration);
 
   // initialize the network
   Serial.println("Initializing SPI");
